@@ -1,44 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
+import FuzzyChart from "./FuzzyChart";
+import "chart.js/auto";
 
 function App() {
-  const [nama, setNama] = useState('');
+  const [nama, setNama] = useState("");
   const [skorKredit, setSkorKredit] = useState(null);
-  const [totalUtang, setTotalUtang] = useState('');
-  const [penghasilan, setPenghasilan] = useState('');
-  const [rasioUtang, setRasioUtang] = useState('');
-  const [kelayakan, setKelayakan] = useState('');
-  const [interpretasi, setInterpretasi] = useState('');
-  const [error, setError] = useState(''); // State untuk menampilkan pesan error
+  const [totalUtang, setTotalUtang] = useState("");
+  const [penghasilan, setPenghasilan] = useState("");
+  const [rasioUtang, setRasioUtang] = useState("");
+  const [kelayakan, setKelayakan] = useState("");
+  const [interpretasi, setInterpretasi] = useState("");
+  const [error, setError] = useState("");
 
-  // Data Dummy untuk skor kredit
+  const [historySkor, setHistorySkor] = useState([]);
+  const [historyRasio, setHistoryRasio] = useState([]);
+  const [historyOutput, setHistoryOutput] = useState([]);
+
   const dataDummySkorKredit = {
-    'Ahmad Zulfikar': 750,
-    'Budi Santoso': 680,
-    'Chandra Wijaya': 720,
-    'Dina Maria': 690,
-    'Eka Prasetya': 710,
-    'Fajar Arifin': 765,
-    'Gita Puspita': 730,
+    "Ahmad Zulfikar": 750,
+    "Budi Santoso": 680,
+    "Chandra Wijaya": 720,
+    "Dina Maria": 690,
+    "Eka Prasetya": 710,
+    "Fajar Arifin": 765,
+    "Gita Puspita": 730,
   };
 
-  // Fungsi untuk mendapatkan skor kredit
   useEffect(() => {
     if (nama) {
       const skor = dataDummySkorKredit[nama];
       if (skor) {
         setSkorKredit(skor);
-        setError(''); // Reset error jika nama ditemukan
+        setError("");
       } else {
         setSkorKredit(null);
-        setError('Nama nasabah tidak ditemukan.'); // Tampilkan pesan error
+        setError("Nama nasabah tidak ditemukan.");
       }
     } else {
       setSkorKredit(null);
-      setError('');
+      setError("");
     }
   }, [nama]);
 
-  // Fungsi untuk menghitung rasio utang
   useEffect(() => {
     const debt = parseFloat(totalUtang);
     const income = parseFloat(penghasilan);
@@ -46,11 +49,10 @@ function App() {
       const ratio = (debt / income) * 100;
       setRasioUtang(ratio.toFixed(2));
     } else {
-      setRasioUtang('');
+      setRasioUtang("");
     }
   }, [totalUtang, penghasilan]);
 
-  // Fungsi untuk menghitung fuzzy membership
   const calculateFuzzyMembership = (value, lowRange, midRange, highRange) => {
     if (value <= lowRange[1]) return { rendah: 1, sedang: 0, tinggi: 0 };
     if (value >= highRange[0]) return { rendah: 0, sedang: 0, tinggi: 1 };
@@ -67,13 +69,11 @@ function App() {
     return { rendah, sedang, tinggi };
   };
 
-  // Fungsi untuk menentukan kelayakan menggunakan metode Tsukamoto
   useEffect(() => {
-    if (skorKredit !== null && rasioUtang !== '') {
+    if (skorKredit !== null && rasioUtang !== "") {
       const skorKreditFuzzy = calculateFuzzyMembership(skorKredit, [0, 500], [500, 750], [750, 850]);
       const rasioUtangFuzzy = calculateFuzzyMembership(parseFloat(rasioUtang), [0, 30], [30, 60], [60, 100]);
 
-      // Aturan fuzzy
       const rules = [
         { condition: Math.min(skorKreditFuzzy.tinggi, rasioUtangFuzzy.rendah), output: 90 },
         { condition: Math.min(skorKreditFuzzy.sedang, rasioUtangFuzzy.sedang), output: 70 },
@@ -91,71 +91,126 @@ function App() {
 
       const crispOutput = denominator === 0 ? 0 : numerator / denominator;
 
-      // Interpretasi deskriptif
-      let description = '';
+      let description = "";
       if (crispOutput >= 80) {
-        description = 'Nasabah sangat layak untuk diberikan kredit.';
+        description = "Nasabah sangat layak untuk diberikan kredit.";
       } else if (crispOutput >= 50) {
-        description = 'Nasabah cukup layak untuk mendapatkan kredit, namun perlu evaluasi lebih lanjut.';
+        description = "Nasabah cukup layak untuk mendapatkan kredit, namun perlu evaluasi lebih lanjut.";
       } else {
-        description = 'Nasabah tidak layak untuk diberikan kredit.';
+        description = "Nasabah tidak layak untuk diberikan kredit.";
       }
 
       setKelayakan(`Kelayakan Kredit: ${crispOutput.toFixed(2)}`);
       setInterpretasi(description);
+
+      setHistorySkor([...historySkor, skorKredit]);
+      setHistoryRasio([...historyRasio, rasioUtang]);
+      setHistoryOutput([...historyOutput, crispOutput]);
     } else {
-      setKelayakan('');
-      setInterpretasi('');
+      setKelayakan("");
+      setInterpretasi("");
     }
   }, [skorKredit, rasioUtang]);
+
+  const createChartData = (data, label) => ({
+    labels: data.map((_, index) => `Observasi ${index + 1}`),
+    datasets: [
+      {
+        label,
+        data,
+        borderColor: "rgba(75,192,192,1)",
+        backgroundColor: "rgba(75,192,192,0.2)",
+        fill: true,
+      },
+    ],
+  });
+
+  // Fungsi Keanggotaan Fuzzy untuk Skor Kredit
+  const skorLabels = [0, 500, 750, 850];
+  const skorRendah = [1, 0, 0, 0];
+  const skorSedang = [0, 1, 1, 0];
+  const skorTinggi = [0, 0, 0, 1];
+
+  // Fungsi Keanggotaan Fuzzy untuk Rasio Utang
+  const rasioLabels = [0, 30, 60, 100];
+  const rasioRendah = [1, 0, 0, 0];
+  const rasioSedang = [0, 1, 1, 0];
+  const rasioTinggi = [0, 0, 0, 1];
+
+  // Fungsi Keanggotaan Fuzzy untuk Output Kelayakan Kredit
+  const outputLabels = [0, 30, 50, 80, 100];
+  const outputRendah = [1, 0.8, 0.5, 0, 0];
+  const outputSedang = [0, 0.2, 0.5, 0.8, 0];
+  const outputTinggi = [0, 0, 0.5, 1, 1];
 
   return (
     <div className="max-w-md mx-auto p-4">
       <h1 className="text-2xl font-semibold mb-4">Sistem Penilaian Kelayakan Kredit</h1>
 
-      <div>
-        <label className="block mb-2">Nama Nasabah</label>
-        <input
-          type="text"
-          value={nama}
-          onChange={(e) => setNama(e.target.value)}
-          className="w-full p-2 border border-gray-300 mb-2"
-        />
-        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+      <label>Nama Nasabah</label>
+      <input
+        type="text"
+        value={nama}
+        onChange={(e) => setNama(e.target.value)}
+        className="w-full p-2 border mb-4"
+      />
+      {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
-        {skorKredit !== null && <p className='mb-4' style={{ fontStyle: 'italic', fontWeight: 'bold' }}>Skor Kredit: {skorKredit}</p>}
+      <label>Total Utang Bulanan</label>
+      <input
+        type="number"
+        value={totalUtang}
+        onChange={(e) => setTotalUtang(e.target.value)}
+        className="w-full p-2 border mb-4"
+      />
 
-        <div>
-          <label className="block mb-2">Total Utang Bulanan</label>
-          <input
-            type="number"
-            value={totalUtang}
-            onChange={(e) => setTotalUtang(e.target.value)}
-            className="w-full p-2 border border-gray-300 mb-4"
+      <label>Penghasilan Bulanan</label>
+      <input
+        type="number"
+        value={penghasilan}
+        onChange={(e) => setPenghasilan(e.target.value)}
+        className="w-full p-2 border mb-4"
+      />
+
+      {rasioUtang && <p>Rasio Utang: {rasioUtang}%</p>}
+      {kelayakan && <p>{kelayakan}</p>}
+      {interpretasi && (
+        <div className="my-4">
+          <label className="block text-lg font-semibold mb-2">Keputusan Kelayakan Kredit</label>
+          <textarea
+            value={interpretasi}
+            disabled
+            className="w-full h-32 p-4 bg-gray-100 text-black border-2 border-gray-300 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+      )}
 
-        <div>
-          <label className="block mb-2">Penghasilan Bulanan</label>
-          <input
-            type="number"
-            value={penghasilan}
-            onChange={(e) => setPenghasilan(e.target.value)}
-            className="w-full p-2 border border-gray-300 mb-4"
-          />
-        </div>
+      {/* Grafik untuk Skor Kredit */}
+      <FuzzyChart
+        title="Fungsi Keanggotaan Skor Kredit"
+        lowData={skorRendah}
+        midData={skorSedang}
+        highData={skorTinggi}
+        labels={skorLabels}
+      />
 
-        {rasioUtang && <p style={{ fontStyle: 'italic', fontWeight: 'bold' }}>Rasio Utang: {rasioUtang}%</p>}
-        {kelayakan && <p style={{ fontStyle: 'italic', fontWeight: 'bold' }}>{kelayakan}</p>}
+      {/* Grafik untuk Rasio Utang */}
+      <FuzzyChart
+        title="Fungsi Keanggotaan Rasio Utang"
+        lowData={rasioRendah}
+        midData={rasioSedang}
+        highData={rasioTinggi}
+        labels={rasioLabels}
+      />
 
-        <label className="block mb-2 mt-4">Interpretasi Kelayakan Kredit</label>
-        <textarea
-          value={interpretasi}
-          readOnly
-          className="w-full p-2 border border-gray-300 bg-gray-100"
-          style={{ fontWeight: 'normal' }} 
-        />
-      </div>
+      {/* Grafik untuk Output Kelayakan Kredit */}
+      <FuzzyChart
+        title="Fungsi Keanggotaan Output Kelayakan Kredit"
+        lowData={outputRendah}
+        midData={outputSedang}
+        highData={outputTinggi}
+        labels={outputLabels}
+      />
     </div>
   );
 }
